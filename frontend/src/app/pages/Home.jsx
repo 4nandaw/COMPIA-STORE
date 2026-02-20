@@ -1,11 +1,12 @@
 import { ArrowRight, Star, Truck, Shield, BookOpen } from "lucide-react";
 import { Link } from "react-router";
-import { PRODUCTS, CATEGORIES } from "../data/mockData";
+import { useProducts } from "../context/ProductContext";
 import { ProductCard } from "../components/ProductCard";
 
 export function Home() {
-  const bestSellers = PRODUCTS.filter((p) => p.isBestSeller).slice(0, 4);
-  const newReleases = PRODUCTS.filter((p) => p.isNew).slice(0, 4);
+  const { products, categories } = useProducts();
+  const bestSellers = products.filter((p) => p.isBestSeller).slice(0, 4);
+  const newReleases = products.filter((p) => p.isNew).slice(0, 4);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -94,7 +95,7 @@ export function Home() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <Link
                 key={cat.id}
                 to={`/shop?category=${cat.id}`}
