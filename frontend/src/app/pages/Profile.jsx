@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { User, Package, Download, Settings, LogOut } from "lucide-react";
 
 export function Profile() {
@@ -44,7 +45,13 @@ export function Profile() {
                 >
                   <Settings size={18} /> Configurações
                 </button>
-                <button type="button" className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors mt-4">
+                <Link
+                  to="/admin"
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-purple-600 hover:bg-purple-50 transition-colors mt-4"
+                >
+                  <Settings size={18} /> Gestão de Produtos
+                </Link>
+                <button type="button" className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors mt-2">
                   <LogOut size={18} /> Sair
                 </button>
               </nav>
