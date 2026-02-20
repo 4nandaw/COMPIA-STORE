@@ -6,6 +6,7 @@ import { ProductDetail } from "./pages/ProductDetail";
 import { Cart } from "./pages/Cart";
 import { Checkout } from "./pages/Checkout";
 import { Profile } from "./pages/Profile";
+import { Admin } from "./pages/Admin";
 import { Contact } from "./pages/Contact";
 import { About } from "./pages/About";
 import { Link } from "react-router";
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "cart", Component: Cart },
       { path: "checkout", Component: Checkout },
       { path: "profile", Component: Profile },
+      { path: "admin", Component: Admin },
       { path: "contact", Component: Contact },
       { path: "about", Component: About },
       { path: "*", Component: NotFound },
