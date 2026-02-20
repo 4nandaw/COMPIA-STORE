@@ -9,3 +9,8 @@
   }
 }
 
+[data-sonner-toaster] {
+  right: 1rem !important;
+  left: auto !important;
+}
+
