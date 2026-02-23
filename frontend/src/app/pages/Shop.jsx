@@ -9,8 +9,8 @@ export function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-  // Get filters from URL
-  const selectedCategory = searchParams.get("category");
+  // Get filters from URL (aceita "category" e "cat" para compatibilidade com links do footer)
+  const selectedCategory = searchParams.get("category") || searchParams.get("cat");
   const selectedType = searchParams.get("type");
   const sortOrder = searchParams.get("sort") || "featured";
 
@@ -21,11 +21,18 @@ export function Shop() {
     if (selectedCategory) {
       const categoryMatch = categories.find((c) => c.id === selectedCategory);
       const categoryName = categoryMatch ? categoryMatch.name : selectedCategory;
-      result = result.filter(
-        (p) =>
+      const categoryId = categoryMatch ? categoryMatch.id.toLowerCase() : selectedCategory.toLowerCase();
+      result = result.filter((p) => {
+        const productCat = (p.category || "").toLowerCase();
+        const nameLower = categoryName.toLowerCase();
+        // Considera nome completo, id da categoria (ex: "ia") ou nome abreviado no produto
+        return (
           p.category === categoryName ||
-          p.category.toLowerCase().includes(categoryName.toLowerCase())
-      );
+          productCat === categoryId ||
+          productCat.includes(nameLower) ||
+          nameLower.includes(productCat)
+        );
+      });
     }
 
     if (selectedType) {
