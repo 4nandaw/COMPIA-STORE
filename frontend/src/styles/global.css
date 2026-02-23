@@ -10,6 +10,7 @@
 }
 
 [data-sonner-toaster] {
+  top: 5rem !important;
   right: 1rem !important;
   left: auto !important;
 }
