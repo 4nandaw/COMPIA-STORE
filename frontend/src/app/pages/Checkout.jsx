@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { ArrowLeft, Truck, MapPin, Download, Copy } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { toast } from "sonner";
+import { addNotification } from "../utils/notifications";
 
 const STORE_PICKUP_ADDRESS = "Av. Paulista, 1000 - São Paulo, SP. Seg a Sex, 9h às 18h.";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -276,10 +277,28 @@ export function Checkout() {
         status: payment.status,
         pixKey: payment.pix?.pix_key ?? null,
       },
+      status: "processando",
     };
     const orders = JSON.parse(localStorage.getItem("compia_orders") || "[]");
     orders.push(order);
     localStorage.setItem("compia_orders", JSON.stringify(orders));
+
+    // Notificações para cliente e admin
+    addNotification({
+      role: "customer",
+      orderId: order.id,
+      type: "order_created",
+      message: `Seu pedido ${order.id} foi recebido e está em processamento.`,
+    });
+
+    addNotification({
+      role: "admin",
+      orderId: order.id,
+      type: "order_created",
+      message: `Novo pedido ${order.id} realizado com total de R$ ${order.total
+        .toFixed(2)
+        .replace(".", ",")}.`,
+    });
     clearCart();
     toast.success("Pedido realizado com sucesso!");
     navigate("/order-success", { state: { order } });

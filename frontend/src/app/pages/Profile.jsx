@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router";
-import { User, Package, Download, Settings, LogOut } from "lucide-react";
+import { User, Package, Download, Settings, LogOut, Bell } from "lucide-react";
+import { toast } from "sonner";
+import { getNotificationsByRole, markNotificationsAsReadByRole, addNotification } from "../utils/notifications";
 
 function getOrders() {
   try {
@@ -23,7 +25,7 @@ function getPurchasedEbooks() {
   return ebooks;
 }
 
-const VALID_TABS = ["orders", "downloads", "settings"];
+const VALID_TABS = ["orders", "downloads", "notifications", "settings"];
 
 export function Profile() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -31,6 +33,12 @@ export function Profile() {
   const [activeTab, setActiveTab] = useState(
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "orders"
   );
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [ordersRefresh, setOrdersRefresh] = useState(0);
+  const [notifications, setNotifications] = useState(
+    tabFromUrl === "notifications" ? getNotificationsByRole("customer") : []
+  );
+  const [pendingCancelOrderId, setPendingCancelOrderId] = useState(null);
 
   useEffect(() => {
     if (tabFromUrl && VALID_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
@@ -44,6 +52,39 @@ export function Profile() {
   };
 
   const purchasedEbooks = activeTab === "downloads" ? getPurchasedEbooks() : [];
+
+  const handleCancelOrder = (orderId) => {
+    const orders = getOrders();
+    const index = orders.findIndex((o) => o.id === orderId);
+    if (index === -1) {
+      toast.error("Pedido não encontrado.");
+      return;
+    }
+    const currentStatus = orders[index].status || "confirmado";
+    if (["enviado", "concluido", "cancelado"].includes(currentStatus)) {
+      toast.error("Este pedido não pode mais ser cancelado.");
+      return;
+    }
+    orders[index] = { ...orders[index], status: "cancelado" };
+    localStorage.setItem("compia_orders", JSON.stringify(orders));
+    setOrdersRefresh((v) => v + 1);
+    toast.success("Pedido cancelado com sucesso.");
+
+    // Notificação para o admin sobre cancelamento
+    addNotification({
+      role: "admin",
+      orderId,
+      type: "order_cancelled",
+      message: `O cliente solicitou o cancelamento do pedido ${orderId}.`,
+    });
+  };
+
+  useEffect(() => {
+    if (activeTab === "notifications") {
+      const updated = markNotificationsAsReadByRole("customer");
+      setNotifications(updated.filter((n) => n.role === "customer"));
+    }
+  }, [activeTab]);
 
   return (
     <div className="bg-gray-50 min-h-screen py-10">
@@ -77,6 +118,15 @@ export function Profile() {
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${activeTab === 'downloads' ? 'bg-[#00C2FF]/10 text-[#00C2FF]' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   <Download size={18} /> Downloads
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTabAndUrl("notifications")}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === 'notifications' ? 'bg-[#00C2FF]/10 text-[#00C2FF]' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Bell size={18} /> Notificações
                 </button>
                 <button
                   type="button"
@@ -118,20 +168,196 @@ export function Profile() {
                               {order.date ? new Date(order.date).toLocaleDateString("pt-BR") : "—"}
                             </p>
                           </div>
-                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                            Confirmado
-                          </span>
+                          {(() => {
+                            const rawStatus = (order.status || "processando").toLowerCase();
+                            const label =
+                              rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
+                            let colorClasses =
+                              "px-3 py-1 rounded-full text-xs font-bold ";
+
+                            if (rawStatus === "cancelado") {
+                              colorClasses += "bg-red-100 text-red-700";
+                            } else if (rawStatus === "concluido") {
+                              colorClasses += "bg-green-100 text-green-700";
+                            } else if (rawStatus === "enviado") {
+                              colorClasses += "bg-orange-100 text-orange-700";
+                            } else if (rawStatus === "confirmado") {
+                              colorClasses += "bg-blue-100 text-blue-700";
+                            } else if (rawStatus === "processando") {
+                              colorClasses += "bg-yellow-100 text-yellow-700";
+                            } else {
+                              colorClasses += "bg-gray-100 text-gray-600";
+                            }
+
+                            return <span className={colorClasses}>{label}</span>;
+                          })()}
                         </div>
                         <div className="flex items-center justify-between border-t border-gray-50 pt-4">
                           <p className="text-sm text-gray-600">
                             Total: <span className="font-bold">R$ {(order.total ?? 0).toFixed(2).replace(".", ",")}</span>
-                            {order.deliveryMethod === "pickup" && " (retirada no local)"}
                           </p>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedOrderId(expandedOrderId === order.id ? null : order.id)
+                              }
+                              className="text-sm text-[#00C2FF] font-medium hover:underline"
+                            >
+                              {expandedOrderId === order.id ? "Ocultar detalhes" : "Ver detalhes"}
+                            </button>
+                          </div>
                         </div>
+                        {expandedOrderId === order.id && (
+                          <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 text-sm">
+                            <div>
+                              <p className="font-semibold text-[#0A192F] mb-2">Itens do pedido</p>
+                              <ul className="space-y-2">
+                                {(order.items || []).map((item) => (
+                                  <li key={item.id} className="flex justify-between text-gray-700">
+                                    <span className="truncate max-w-[60%]">
+                                      {item.title}{" "}
+                                      <span className="text-xs text-gray-500">
+                                        ({item.type === "ebook" ? "E-book" : item.type === "kit" ? "Kit" : "Livro"})
+                                      </span>
+                                      {" x"}
+                                      {item.quantity}
+                                    </span>
+                                    <span className="font-medium">
+                                      R$ {(item.price * item.quantity).toFixed(2).replace(".", ",")}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                              <div>
+                                <p>Subtotal</p>
+                                <p className="font-semibold text-[#0A192F]">
+                                  R$ {(order.subtotal ?? 0).toFixed(2).replace(".", ",")}
+                                </p>
+                              </div>
+                              <div>
+                                <p>Frete</p>
+                                <p className="font-semibold text-[#0A192F]">
+                                  {order.deliveryMethod === "pickup" || order.deliveryMethod === "digital"
+                                    ? "—"
+                                    : (order.shippingCost ?? 0) === 0
+                                    ? "Grátis"
+                                    : `R$ ${(order.shippingCost ?? 0).toFixed(2).replace(".", ",")}`}
+                                </p>
+                              </div>
+                              <div>
+                                <p>Forma de entrega</p>
+                                <p className="font-semibold text-[#0A192F]">
+                                  {order.deliveryMethod === "pickup"
+                                    ? "Retirada no local"
+                                    : order.deliveryMethod === "digital"
+                                    ? "Entrega digital"
+                                    : "Envio (Correios)"}
+                                </p>
+                              </div>
+                              {order.shippingInfo?.days > 0 && order.deliveryMethod !== "pickup" && (
+                                <div>
+                                  <p>Prazo estimado</p>
+                                  <p className="font-semibold text-[#0A192F]">
+                                    {order.shippingInfo.days}{" "}
+                                    {order.shippingInfo.days === 1 ? "dia útil" : "dias úteis"}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            {order.deliveryMethod === "pickup" && order.pickupAddress && (
+                              <div className="text-xs text-gray-600">
+                                <p className="font-semibold text-[#0A192F] mb-1">Endereço para retirada</p>
+                                <p>{order.pickupAddress}</p>
+                              </div>
+                            )}
+                            {(order.items || []).some((i) => i.type === "ebook") ? (
+                              <div className="flex items-center justify-between text-xs text-gray-500 pt-2">
+                                <p>
+                                  E-books deste pedido podem ser baixados na aba{" "}
+                                  <Link
+                                    to="/profile?tab=downloads"
+                                    className="text-[#00C2FF] hover:underline font-medium"
+                                  >
+                                    Downloads
+                                  </Link>.
+                                </p>
+                                {(() => {
+                                  const status = (order.status || "confirmado").toLowerCase();
+                                  const canCancel = ["confirmado", "processando"].includes(status);
+                                  return (
+                                    canCancel && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setPendingCancelOrderId(order.id)}
+                                        className="ml-4 text-xs text-red-500 font-medium hover:underline whitespace-nowrap"
+                                      >
+                                        Cancelar pedido
+                                      </button>
+                                    )
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              <div className="flex justify-end pt-2">
+                                {(() => {
+                                  const status = (order.status || "confirmado").toLowerCase();
+                                  const canCancel = ["confirmado", "processando"].includes(status);
+                                  return (
+                                    canCancel && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setPendingCancelOrderId(order.id)}
+                                        className="text-xs text-red-500 font-medium hover:underline"
+                                      >
+                                        Cancelar pedido
+                                      </button>
+                                    )
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Modal de confirmação de cancelamento (cliente) */}
+            {pendingCancelOrderId && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                  <h3 className="text-lg font-bold text-[#0A192F] mb-2">Cancelar pedido</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Tem certeza de que deseja cancelar o pedido{" "}
+                    <span className="font-semibold">{pendingCancelOrderId}</span>? Esta ação não
+                    pode ser desfeita.
+                  </p>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPendingCancelOrderId(null)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      Manter pedido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleCancelOrder(pendingCancelOrderId);
+                        setPendingCancelOrderId(null);
+                      }}
+                      className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700"
+                    >
+                      Confirmar cancelamento
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -168,6 +394,50 @@ export function Profile() {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            )}
+            {activeTab === "notifications" && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-xl font-bold text-[#0A192F] mb-4 flex items-center gap-2">
+                  <Bell size={18} /> Notificações
+                </h2>
+                {notifications.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Você ainda não possui notificações de pedidos.
+                  </p>
+                ) : (
+                  <ul className="space-y-3 text-sm">
+                    {notifications
+                      .filter((n) => n.role === "customer")
+                      .slice()
+                      .reverse()
+                      .map((n) => (
+                        <li
+                          key={n.id}
+                          className={`border border-gray-100 rounded-lg px-4 py-3 flex items-start justify-between gap-3 ${
+                            n.read ? "bg-white" : "bg-[#00C2FF]/5"
+                          }`}
+                        >
+                          <div>
+                            <p className="text-gray-800">{n.message}</p>
+                            <p className="text-[11px] text-gray-400 mt-1">
+                              {n.createdAt
+                                ? new Date(n.createdAt).toLocaleString("pt-BR")
+                                : ""}
+                            </p>
+                          </div>
+                          {n.orderId && (
+                            <Link
+                              to="/profile?tab=orders"
+                              className="text-[11px] text-[#00C2FF] hover:underline font-medium whitespace-nowrap"
+                            >
+                              Ver pedido
+                            </Link>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
                 )}
               </div>
             )}
