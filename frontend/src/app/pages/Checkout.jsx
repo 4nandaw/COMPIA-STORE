@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { ArrowLeft, Truck, MapPin, Download, Copy } from "lucide-react";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import { addNotification } from "../utils/notifications";
 import { apiCreateOrder } from "../services/api";
@@ -28,7 +29,14 @@ const REQUEST_TIMEOUT_MS = 15000;
 
 export function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
+  const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate("/login?redirect=/checkout", { replace: true });
+    }
+  }, [isLoggedIn, navigate]);
 
   const hasPhysicalItems = cart.some((item) => item.type !== "ebook");
   const hasDigitalItems = cart.some((item) => item.type === "ebook");
@@ -444,6 +452,8 @@ export function Checkout() {
       : paymentMethod === "pix"
         ? "Gerar QR Code PIX"
         : "Pagar e concluir pedido";
+
+  if (!isLoggedIn) return null;
 
   if (cart.length === 0) {
     return (
