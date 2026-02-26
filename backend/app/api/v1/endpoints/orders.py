@@ -2,7 +2,7 @@
 Endpoints de Pedidos.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -12,6 +12,7 @@ from app.models.order import Order, OrderItem
 from app.models.user import User
 from app.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
 from app.services.email_service import send_order_confirmation_email
+from app.services.audit_service import log_activity
 
 router = APIRouter()
 
@@ -21,7 +22,7 @@ def list_orders(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Listar pedidos — admin vê todos, user vê apenas os seus."""
+    """Listar pedidos — admin/vendedor vê todos, user vê apenas os seus."""
     if user.role in ("admin", "seller"):
         orders = db.query(Order).order_by(Order.date.desc()).all()
     else:
@@ -36,6 +37,7 @@ def list_orders(
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_order(
+    request: Request,
     payload: OrderCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -84,6 +86,17 @@ def create_order(
         message=f"Novo pedido {order.id} realizado com total de R$ {order.total:,.2f}.".replace(",", "X").replace(".", ",").replace("X", "."),
     )
     db.add_all([notif_customer, notif_admin])
+
+    log_activity(
+        db=db,
+        user_email=user.email,
+        action="order.create",
+        entity="order",
+        entity_id=order.id,
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
     db.commit()
     db.refresh(order)
 
@@ -108,6 +121,7 @@ def create_order(
 
 @router.patch("/{order_id}/status")
 def update_order_status(
+    request: Request,
     order_id: str,
     payload: OrderStatusUpdate,
     db: Session = Depends(get_db),
@@ -138,6 +152,18 @@ def update_order_status(
         message=message,
     )
     db.add(notif)
+
+    log_activity(
+        db=db,
+        user_email=user.email,
+        action="order.status_update",
+        entity="order",
+        entity_id=order_id,
+        ip=request.client.host if request.client else None,
+        meta={"new_status": payload.status},
+        user_agent=request.headers.get("user-agent"),
+    )
+
     db.commit()
     db.refresh(order)
     return OrderResponse.model_validate(order).model_dump()
@@ -145,6 +171,7 @@ def update_order_status(
 
 @router.patch("/{order_id}/cancel")
 def cancel_order(
+    request: Request,
     order_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -175,6 +202,17 @@ def cancel_order(
         message=f"O cliente solicitou o cancelamento do pedido {order_id}.",
     )
     db.add(notif)
+
+    log_activity(
+        db=db,
+        user_email=user.email,
+        action="order.cancel",
+        entity="order",
+        entity_id=order_id,
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
     db.commit()
     db.refresh(order)
     return OrderResponse.model_validate(order).model_dump()
