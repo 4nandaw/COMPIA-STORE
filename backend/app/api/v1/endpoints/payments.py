@@ -3,7 +3,7 @@ from decimal import Decimal
 from urllib.parse import quote_plus
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.schemas.payment import (
     PaymentConfirmResponse,
@@ -13,6 +13,9 @@ from app.schemas.payment import (
     PaymentStatus,
     PixPaymentData,
 )
+
+from app.dependencies.auth import require_roles
+from app.models.user import User
 
 router = APIRouter()
 
@@ -87,7 +90,7 @@ def create_payment(payload: PaymentCreateRequest) -> PaymentResponse:
 
 
 @router.post("/{transaction_id}/confirm", response_model=PaymentConfirmResponse)
-def confirm_pix_payment(transaction_id: str) -> PaymentConfirmResponse:
+def confirm_pix_payment(transaction_id: str, user: User = Depends(require_roles("admin", "seller"))) -> PaymentConfirmResponse:
     payment = _PAYMENT_STORE.get(transaction_id)
     if payment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transação não encontrada.")

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.dependencies.auth import get_current_user, require_admin
+from app.dependencies.auth import get_current_user, require_roles
 from app.models.notification import Notification
 from app.models.order import Order, OrderItem
 from app.models.user import User
@@ -22,7 +22,7 @@ def list_orders(
     user: User = Depends(get_current_user),
 ):
     """Listar pedidos — admin vê todos, user vê apenas os seus."""
-    if user.role == "admin":
+    if user.role in ("admin", "seller"):
         orders = db.query(Order).order_by(Order.date.desc()).all()
     else:
         orders = (
@@ -111,9 +111,9 @@ def update_order_status(
     order_id: str,
     payload: OrderStatusUpdate,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_roles("admin", "seller"))
 ):
-    """Alterar status de um pedido (apenas admin)."""
+    """Alterar status de um pedido (apenas admin e vendedor)."""
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pedido não encontrado.")

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.dependencies.auth import require_admin
+from app.dependencies.auth import require_roles
 from app.models.product import Product
 from app.models.user import User
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
@@ -37,9 +37,9 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
 def create_product(
     payload: ProductCreate,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_roles("admin", "editor")),
 ):
-    """Cadastrar novo produto (apenas admin)."""
+    """Cadastrar novo produto (apenas admin e editor)."""
     product = Product(
         title=payload.title,
         author=payload.author,
@@ -64,9 +64,9 @@ def update_product(
     product_id: str,
     payload: ProductUpdate,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_roles("admin", "editor")),
 ):
-    """Atualizar produto existente (apenas admin)."""
+    """Atualizar produto existente (apenas admin e editor)."""
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(
@@ -87,7 +87,7 @@ def update_product(
 def delete_product(
     product_id: str,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_roles("admin")),
 ):
     """Excluir produto (apenas admin)."""
     product = db.query(Product).filter(Product.id == product_id).first()

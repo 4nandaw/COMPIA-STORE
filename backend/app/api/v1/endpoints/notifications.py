@@ -13,6 +13,7 @@ from app.schemas.notification import NotificationResponse
 
 router = APIRouter()
 
+BACKOFFICE_ROLES = {"admin", "editor", "seller"}
 
 @router.get("")
 def list_notifications(
@@ -20,7 +21,8 @@ def list_notifications(
     user: User = Depends(get_current_user),
 ):
     """Listar notificações baseado na role do usuário."""
-    role = "admin" if user.role == "admin" else "customer"
+    
+    role = "admin" if user.role in BACKOFFICE_ROLES else "customer"
     notifications = (
         db.query(Notification)
         .filter(Notification.role == role)
@@ -36,7 +38,7 @@ def mark_notifications_read(
     user: User = Depends(get_current_user),
 ):
     """Marcar todas as notificações como lidas."""
-    role = "admin" if user.role == "admin" else "customer"
+    role = "admin" if user.role in BACKOFFICE_ROLES else "customer"
     db.query(Notification).filter(
         Notification.role == role,
         Notification.read == False,

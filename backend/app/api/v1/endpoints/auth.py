@@ -27,7 +27,7 @@ def register(payload: UserRegister, db: Session = Depends(get_db)):
         email=payload.email,
         password=payload.password,
         name=payload.name,
-        role="user",
+        role="customer",
     )
     db.add(user)
     db.commit()
