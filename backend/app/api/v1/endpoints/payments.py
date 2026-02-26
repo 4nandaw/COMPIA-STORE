@@ -17,6 +17,7 @@ from app.schemas.payment import (
 router = APIRouter()
 
 _PAYMENT_STORE: dict[str, PaymentResponse] = {}
+_PIX_FIXED_KEY = "6841c4e9-5744-434c-81d0-821b48846b22"
 
 
 def _format_emv_field(field_id: str, value: str) -> str:
@@ -85,7 +86,7 @@ def create_payment(payload: PaymentCreateRequest) -> PaymentResponse:
 
     if payload.method == PaymentMethod.PIX:
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
-        pix_key = str(uuid4())
+        pix_key = _PIX_FIXED_KEY
         qr_code_text = _build_pix_br_code(
             pix_key=pix_key,
             merchant_name="COMPIA STORE",
