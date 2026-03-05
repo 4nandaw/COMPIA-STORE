@@ -20,11 +20,13 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = ""
+    MYSQL_URL: str = ""
     MYSQLHOST: str = ""
     MYSQLPORT: str = "3306"
     MYSQLDATABASE: str = ""
     MYSQLUSER: str = ""
     MYSQLPASSWORD: str = ""
+    RENDER: str = ""
 
     # Email (Resend)
     RESEND_API_KEY: str = ""
@@ -39,7 +41,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Resolve a URL do banco para ambientes locais, Docker e Render."""
-        raw_url = self.DATABASE_URL.strip()
+        raw_url = (self.DATABASE_URL or self.MYSQL_URL).strip()
         if raw_url:
             if raw_url.startswith("mysql://"):
                 return raw_url.replace("mysql://", "mysql+pymysql://", 1)
@@ -52,7 +54,13 @@ class Settings(BaseSettings):
                 f"{self.MYSQLHOST}:{self.MYSQLPORT}/{self.MYSQLDATABASE}"
             )
 
-        return "mysql+pymysql://compia:compia123@mysql:3306/compia_store"
+        if self.RENDER.strip().lower() == "true":
+            raise RuntimeError(
+                "Banco não configurado no Render. Defina DATABASE_URL (ou MYSQL_URL), "
+                "ou configure MYSQLHOST/MYSQLPORT/MYSQLDATABASE/MYSQLUSER/MYSQLPASSWORD."
+            )
+
+        return "mysql+pymysql://compia:compia123@localhost:3306/compia_store"
 
 
 @lru_cache()
